@@ -55,14 +55,15 @@ def get_conversation_chain(vectorstore):
 
 def handle_userinput(user_question):
     response = st.session_state.conversation({'question': user_question})
+
     st.session_state.chat_history = response['chat_history']
 
-    for i, message in enumerate(st.session_state.chat_history):
+    for i, message in enumerate(reversed(st.session_state.chat_history)):
         if i % 2 == 0:
-            st.write(user_template.replace(
+            st.write(bot_template.replace(
                 "{{MSG}}", message.content), unsafe_allow_html=True)
         else:
-            st.write(bot_template.replace(
+            st.write(user_template.replace(
                 "{{MSG}}", message.content), unsafe_allow_html=True)
 
 
@@ -76,9 +77,14 @@ def main():
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
+    if "text_prompt" not in st.session_state:
+        st.session_state.text_prompt = ""
 
     st.header("Chat with multiple PDFs :books:")
-    user_question = st.text_input("Ask a question about your documents:")
+
+    user_question = st.text_input(
+        "label text visibility set to hidden", label_visibility="hidden", placeholder="Enter your question here", key='text_prompt')
+
     with st.sidebar:
         st.subheader("Your documents")
         pdf_docs = st.file_uploader(
@@ -97,6 +103,13 @@ def main():
                 # create conversation chain
                 st.session_state.conversation = get_conversation_chain(
                     vectorstore)
+
+        # checkbox to view state values
+        view_state = st.checkbox("View state values")
+        if view_state:
+            # st.write("st.session_state chat_history:",st.session_state['chat_history'])
+            st.write("text prompt:",
+                     st.session_state["text_prompt"])
 
     if user_question:
         if st.session_state.conversation is None:
