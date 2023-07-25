@@ -1,7 +1,10 @@
 import streamlit as st
+import os
+import csv
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
+from langchain.agents import create_csv_agent
 from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
@@ -11,12 +14,19 @@ from htmlTemplates import css, bot_template, user_template
 from langchain.llms import HuggingFaceHub
 
 
-def get_pdf_text(pdf_docs):
+def get_file_text(docs):
     text = ""
-    for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+    for doc in docs:
+        if doc.type == 'application/pdf':
+            pdf_reader = PdfReader(doc)
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+        elif doc.type == 'text/csv':
+            with open(doc.name, newline='') as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=',')
+                for row in csv_reader:
+                    text += row[0]
+
     return text
 
 
@@ -69,7 +79,14 @@ def handle_userinput(user_question):
 
 def main():
     load_dotenv()
-    st.set_page_config(page_title="Chat with multiple PDFs",
+
+    # Load the OpenAI API key from the environment variable
+    if os.getenv("OPENAI_API_KEY") is None or os.getenv("OPENAI_API_KEY") == "":
+        st.header(
+            "Please set your OpenAI API key in the .env file and refresh the page.")
+        exit(1)
+
+    st.set_page_config(page_title="Chat with DOCs",
                        page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
 
@@ -80,19 +97,19 @@ def main():
     if "text_prompt" not in st.session_state:
         st.session_state.text_prompt = ""
 
-    st.header("Chat with multiple PDFs :books:")
+    st.header("Chat with multiple DOCs :books::question:")
 
     user_question = st.text_input(
         "label text visibility set to hidden", label_visibility="hidden", placeholder="Enter your question here", key='text_prompt')
 
     with st.sidebar:
         st.subheader("Your documents")
-        pdf_docs = st.file_uploader(
-            "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
+        docs = st.file_uploader(
+            "Upload your PDFs here and click on 'Process'", type=['pdf', 'csv'], accept_multiple_files=True)
         if st.button("Process"):
             with st.spinner("Processing"):
                 # get pdf text
-                raw_text = get_pdf_text(pdf_docs)
+                raw_text = get_file_text(docs)
 
                 # get the text chunks
                 text_chunks = get_text_chunks(raw_text)
